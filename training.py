@@ -10,7 +10,7 @@ pygame.init()
 displayHeight = 600
 displayWidth = 800
 gameDisplay = pygame.display.set_mode((displayWidth, displayHeight))
-pygame.display.set_caption('FlapPy Game')
+pygame.display.set_caption('FlapPy Machine Learning')
 
 current_path = os.path.dirname(__file__) # Where your .py file is located
 images_path = os.path.join(current_path, 'images')
@@ -39,7 +39,7 @@ class Bird():
     def addPoint(self):
         self.points += 1
 
-    def hit(self, player, pipe, displayHeight):
+    def hitPipe(self, pipe):
         if pipe != None:
             if self.x + self.width > pipe.x and self.y + self.height > pipe.y or\
             self.x + self.width > pipe.x and self.y < pipe.y - pipe.gap:
@@ -47,8 +47,15 @@ class Bird():
             else:
                 return False
 
-        if self.y > displayHeight - self.height:
-            return True
+
+    def jump(self):
+        neg = 1
+        if self.jumpCount < 0:
+            neg = -1
+        self.y -= 0.3 * self.jumpCount ** 2 * neg
+        self.jumpCount -= 1
+
+
 
 
     def getPoints(self):
@@ -84,51 +91,42 @@ class Pipe():
         return self.height, self.width, self.gap
 
 
-def redrawDisplay(player, pipes, font):
+def redrawDisplay(players, pipes, font):
 
     gameDisplay.blit(bg, (0, 0))
-
-    player.draw(gameDisplay)
-
-    for pipe in pipes:
-        pipe.draw(gameDisplay)
-    score = font.render('Points: ' + str(player.getPoints()), 1, (0,0,0))
-    gameDisplay.blit(score, (350,30))
-    pygame.display.update()
-
-
-def deathScreen(player, pipes, font):
-    gameDisplay.blit(bg, (0, 0))
-
-    player.draw(gameDisplay)
+    for player in players:
+        player.draw(gameDisplay)
 
     for pipe in pipes:
         pipe.draw(gameDisplay)
 
-    score = font.render('RIP, Points: ' + str(player.getPoints()), 2, (0,0,0))
-    message = font.render('Press any key to quit.', 2, (0,0,0))
+    remaining = font.render('Remaining: ' + str(len(players)), 1, (0,0,0))
 
-    gameDisplay.blit(score, (displayWidth // 2 - score.get_rect().width // 2, displayHeight // 2 - score.get_rect().height // 2))
-    gameDisplay.blit(message, (displayWidth // 2 - message.get_rect().width // 2, displayHeight // 2 - message.get_rect().height // 2 - score.get_rect().height))
+    gameDisplay.blit(remaining, (600, 20))
 
     pygame.display.update()
 
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                return
 
 
 
-def main():
-
-    player = Bird(50, 400, 40, 28)
+def main(genomes, config):
+    nets = []
+    ge = []
     players = []
 
-    pipeCount = 0
+    for _, g in genomes:
+        net = neat.nn.FeedForwardNetwork.create(g, config)
+        nets.append(net)
+        players.append(Bird(50, 400, 40, 28))
+        g.fitness = 0
+        ge.append(g)
+
+
+
+    pipeCount = 100
     pipes = []
 
-    font = pygame.font.SysFont('helvetica', 30, True)
+    font = pygame.font.SysFont('helvetica', 25, True)
 
     run = True
     passedPipe = False
@@ -139,6 +137,7 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
+                pygame.quit()
 
         drawHeight = random.randint(displayHeight - pipeHeight, pipeHeight + pipeGap)
         if pipeCount == 100:
@@ -147,62 +146,76 @@ def main():
             pipes.append(newPipe)
 
 
-        keys = pygame.key.get_pressed()
-
-        if player.isJumping:
-            if player.jumpCount >= -2:
-                neg = 1
-                if player.jumpCount < 0:
-                    neg = -1
-                player.y -= 0.3 * player.jumpCount ** 2 * neg
-                player.jumpCount -= 1
-
-            else:
-                player.jumpCount = 10
-                player.isJumping = False
-
-        else:
-            if keys[pygame.K_SPACE]:
-                player.isJumping = True
 
 
 
-        player.y += player.gravity
+
+
         pipeCount += 1
 
 
 
         for i, pipe in enumerate(pipes):
-
-
             pipe.move()
             pipes[i] = pipe
 
 
-            if pipe.x + pipe.width // 2 < player.x + player.width < pipe.x + pipe.width // 2 + 2:
+
+
+        for i, player in enumerate(players):
+            player.y += player.gravity
+            targetPipe = next((pipe for pipe in pipes if pipe.x + pipe.width > player.x), None)
+
+            if pipe.x + pipe.width // 2 < player.x + player.width // 2 < pipe.x + pipe.width // 2 + 5:
                 player.addPoint()
+                for g in ge:
+                    g.fitness += 5
+
+            ge[i].fitness += 0.1
+
+            output = nets[i].activate((player.y, abs(player.y - targetPipe.height), abs(player.y - targetPipe.y)))
+
+            if output[0] > 0.5:
+                if player.jumpCount >= -2:
+                    player.jump()
+
+                else:
+                    player.jumpCount = 10
+                    player.isJumping = False
 
 
-        targetPipe = next((pipe for pipe in pipes if pipe.x + pipe.width > player.x), None)
+            if player.hitPipe(targetPipe):
+                ge[i].fitness -= 1
+                players.pop(i)
+                nets.pop(i)
+                ge.pop(i)
 
 
 
-        if player.hit(player, targetPipe, displayHeight):
-            run = False
+
 
         if len(pipes) > 0 and pipes[0].outOfFrame():
             pipes.pop(0)
 
-        redrawDisplay(player, pipes, font)
+        for i, player in enumerate(players):
+            if player.y > displayHeight - player.height or player.y < 0:
+                 players.pop(i)
+                 nets.pop(i)
+                 ge.pop(i)
+
+        if len(players) < 1:
+            run = False
+
+        redrawDisplay(players, pipes, font)
 
 
-    deathScreen(player, pipes, font)
-    pygame.quit()
 
-main()
+
+
+
 
 def run(config_path):
-    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_path)
 
@@ -211,12 +224,11 @@ def run(config_path):
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer(5))
 
-    winner = p.run(main(), 300)
+    winner = p.run(main, 300)
 
 
 
 if __name__ == '__main__':
-    config_path = os.path.join(current_path, 'config-feed_forward.txt')
+    config_path = os.path.join(current_path, 'config-feedforward.txt')
     run(config_path)
