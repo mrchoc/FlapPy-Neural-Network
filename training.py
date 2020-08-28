@@ -2,6 +2,9 @@ import pygame
 import random
 import time
 import os
+import neat
+
+
 pygame.init()
 
 displayHeight = 600
@@ -35,15 +38,15 @@ class Bird():
     def addPoint(self):
         self.points += 1
 
-    def hit(self, pipe, displayHeight):
+    def hit(self, player, pipe, displayHeight):
         if pipe != None:
-            if player.x + player.width > pipe.x and player.y + player.height > pipe.y or\
-            player.x + player.width > pipe.x and player.y < pipe.y - pipe.gap:
+            if self.x + self.width > pipe.x and self.y + self.height > pipe.y or\
+            self.x + self.width > pipe.x and self.y < pipe.y - pipe.gap:
                 return True
             else:
                 return False
 
-        if player.y > displayHeight - player.height:
+        if self.y > displayHeight - self.height:
             return True
 
 
@@ -80,7 +83,7 @@ class Pipe():
         return self.height, self.width, self.gap
 
 
-def redrawDisplay():
+def redrawDisplay(player, pipes, font):
 
     gameDisplay.blit(bg, (0, 0))
 
@@ -93,7 +96,7 @@ def redrawDisplay():
     pygame.display.update()
 
 
-def deathScreen():
+def deathScreen(player, pipes, font):
     gameDisplay.blit(bg, (0, 0))
 
     player.draw(gameDisplay)
@@ -116,75 +119,103 @@ def deathScreen():
 
 
 
-player = Bird(50, 400, 40, 28)
+def main(genomes, config):
 
-pipeHeight, pipeWidth, pipeGap = Pipe(0, 0).getAttributes()
-pipeCount = 0
-pipes = []
-font = pygame.font.SysFont('helvetica', 30, True)
+    player = Bird(50, 400, 40, 28)
+    players = []
 
-run = True
-passedPipe = False
+    pipeCount = 0
+    pipes = []
 
-while run:
-    pygame.time.delay(10)
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            run = False
+    font = pygame.font.SysFont('helvetica', 30, True)
 
-    drawHeight = random.randint(displayHeight - pipeHeight, pipeHeight + pipeGap)
-    if pipeCount == 100:
-        pipeCount = 0
-        newPipe = Pipe(800, drawHeight, pipeHeight, pipeWidth, pipeGap)
-        pipes.append(newPipe)
+    run = True
+    passedPipe = False
+    pipeHeight, pipeWidth, pipeGap = Pipe(0, 0).getAttributes()
+
+    while run:
+        pygame.time.delay(10)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+
+        drawHeight = random.randint(displayHeight - pipeHeight, pipeHeight + pipeGap)
+        if pipeCount == 100:
+            pipeCount = 0
+            newPipe = Pipe(800, drawHeight, pipeHeight, pipeWidth, pipeGap)
+            pipes.append(newPipe)
 
 
-    keys = pygame.key.get_pressed()
+        keys = pygame.key.get_pressed()
 
-    if player.isJumping:
-        if player.jumpCount >= -2:
-            neg = 1
-            if player.jumpCount < 0:
-                neg = -1
-            player.y -= 0.3 * player.jumpCount ** 2 * neg
-            player.jumpCount -= 1
+        if player.isJumping:
+            if player.jumpCount >= -2:
+                neg = 1
+                if player.jumpCount < 0:
+                    neg = -1
+                player.y -= 0.3 * player.jumpCount ** 2 * neg
+                player.jumpCount -= 1
+
+            else:
+                player.jumpCount = 10
+                player.isJumping = False
 
         else:
-            player.jumpCount = 10
-            player.isJumping = False
-
-    else:
-        if keys[pygame.K_SPACE]:
-            player.isJumping = True
+            if keys[pygame.K_SPACE]:
+                player.isJumping = True
 
 
 
-    player.y += player.gravity
-    pipeCount += 1
+        player.y += player.gravity
+        pipeCount += 1
 
 
 
-    for i, pipe in enumerate(pipes):
-        pipe.move()
-        pipes[i] = pipe
+        for i, pipe in enumerate(pipes):
+            for player in players:
+
+            pipe.move()
+            pipes[i] = pipe
 
 
-        if pipe.x + pipe.width // 2 < player.x + player.width < pipe.x + pipe.width // 2 + 2:
-            player.addPoint()
-
-    targetPipe = next((pipe for pipe in pipes if pipe.x + pipe.width > player.x), None)
+            if pipe.x + pipe.width // 2 < player.x + player.width < pipe.x + pipe.width // 2 + 2:
+                player.addPoint()
 
 
-
-    if player.hit(targetPipe, displayHeight):
-        run = False
-
-    if len(pipes) > 0 and pipes[0].outOfFrame():
-        pipes.pop(0)
+        targetPipe = next((pipe for pipe in pipes if pipe.x + pipe.width > player.x), None)
 
 
-    redrawDisplay()
+        for player in players:
+            if player.hit(player, targetPipe, displayHeight):
+                run = False
+
+        if len(pipes) > 0 and pipes[0].outOfFrame():
+            pipes.pop(0)
+
+        redrawDisplay(player, pipes, font)
 
 
-deathScreen()
-pygame.quit()
+    deathScreen(player, pipes, font)
+    pygame.quit()
+
+main()
+
+def run(config_path):
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                         config_path)
+
+    p = neat.Population(config)
+
+    p.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
+    p.add_reporter(neat.Checkpointer(5))
+
+    winner = p.run(main(), 300)
+
+
+
+if __name__ == '__main__':
+    config_path = os.path.join(current_path, 'config-feed_forward.txt')
+    run(config_path)
