@@ -13,8 +13,9 @@ gameDisplay = pygame.display.set_mode((displayWidth, displayHeight))
 pygame.display.set_caption('FlapPy Game')
 
 current_path = os.path.dirname(__file__) # Where your .py file is located
+images_path = os.path.join(current_path, 'images')
 
-bg = pygame.image.load(os.path.join(current_path, 'bg.png'))
+bg = pygame.image.load(os.path.join(images_path, 'bg.png'))
 
 
 
@@ -32,7 +33,7 @@ class Bird():
         self.points = 0
 
     def draw(self, gameDisplay):
-        bird = pygame.image.load(os.path.join(current_path, 'bird.png'))
+        bird = pygame.image.load(os.path.join(images_path, 'bird.png'))
         gameDisplay.blit(bird, (self.x, self.y))
 
     def addPoint(self):
@@ -64,8 +65,8 @@ class Pipe():
 
 
     def draw(self, gameDisplay):
-        topPipe = pygame.image.load(os.path.join(current_path, 'topPipe.png'))
-        bottomPipe = pygame.image.load(os.path.join(current_path, 'bottomPipe.png'))
+        topPipe = pygame.image.load(os.path.join(images_path, 'topPipe.png'))
+        bottomPipe = pygame.image.load(os.path.join(images_path, 'bottomPipe.png'))
         gameDisplay.blit(topPipe, (self.x, self.y - self.height - self.gap))
         gameDisplay.blit(bottomPipe, (self.x, self.y))
 
@@ -119,7 +120,7 @@ def deathScreen(player, pipes, font):
 
 
 
-def main(genomes, config):
+def main():
 
     player = Bird(50, 400, 40, 28)
     players = []
@@ -172,7 +173,7 @@ def main(genomes, config):
 
 
         for i, pipe in enumerate(pipes):
-            for player in players:
+
 
             pipe.move()
             pipes[i] = pipe
@@ -185,9 +186,9 @@ def main(genomes, config):
         targetPipe = next((pipe for pipe in pipes if pipe.x + pipe.width > player.x), None)
 
 
-        for player in players:
-            if player.hit(player, targetPipe, displayHeight):
-                run = False
+
+        if player.hit(player, targetPipe, displayHeight):
+            run = False
 
         if len(pipes) > 0 and pipes[0].outOfFrame():
             pipes.pop(0)
