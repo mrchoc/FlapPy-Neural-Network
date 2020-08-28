@@ -36,17 +36,28 @@ class Bird():
     def addPoint(self):
         self.points += 1
 
-    def hit(self, pipe, displayHeight):
+    def hit(self, pipe):
         if pipe != None:
-            if player.x + player.width > pipe.x and player.y + player.height > pipe.y or\
-            player.x + player.width > pipe.x and player.y < pipe.y - pipe.gap:
+            if self.x + self.width > pipe.x and self.y + self.height > pipe.y or\
+            self.x + self.width > pipe.x and self.y < pipe.y - pipe.gap or\
+            self.y > displayHeight - self.height:
                 return True
             else:
                 return False
 
-        if player.y > displayHeight - player.height:
-            return True
 
+
+    def jump(self):
+        if self.jumpCount >= -2:
+            neg = 1
+            if self.jumpCount < 0:
+                neg = -1
+            self.y -= 0.3 * self.jumpCount ** 2 * neg
+            self.jumpCount -= 1
+
+        else:
+            self.jumpCount = 10
+            self.isJumping = False
 
     def getPoints(self):
         return self.points
@@ -81,7 +92,7 @@ class Pipe():
         return self.height, self.width, self.gap
 
 
-def redrawDisplay():
+def redrawDisplay(player, pipes, font):
 
     gameDisplay.blit(bg, (0, 0))
 
@@ -94,7 +105,7 @@ def redrawDisplay():
     pygame.display.update()
 
 
-def deathScreen():
+def deathScreen(player, pipes, font):
     gameDisplay.blit(bg, (0, 0))
 
     player.draw(gameDisplay)
@@ -117,7 +128,7 @@ def deathScreen():
 
 
 
-player = Bird(50, 400, 40, 28)
+player = Bird(50, 200, 40, 28)
 
 pipeHeight, pipeWidth, pipeGap = Pipe(0, 0).getAttributes()
 pipeCount = 0
@@ -126,7 +137,7 @@ font = pygame.font.SysFont('helvetica', 30, True)
 
 run = True
 passedPipe = False
-
+pointAdded = False
 while run:
     pygame.time.delay(10)
     for event in pygame.event.get():
@@ -143,16 +154,8 @@ while run:
     keys = pygame.key.get_pressed()
 
     if player.isJumping:
-        if player.jumpCount >= -2:
-            neg = 1
-            if player.jumpCount < 0:
-                neg = -1
-            player.y -= 0.3 * player.jumpCount ** 2 * neg
-            player.jumpCount -= 1
+        player.jump()
 
-        else:
-            player.jumpCount = 10
-            player.isJumping = False
 
     else:
         if keys[pygame.K_SPACE]:
@@ -169,23 +172,27 @@ while run:
         pipe.move()
         pipes[i] = pipe
 
-
-        if pipe.x + pipe.width // 2 < player.x + player.width < pipe.x + pipe.width // 2 + 2:
+        if pipe.x + pipe.width // 2 < player.x + player.width // 2 < pipe.x + pipe.width // 2 + 5:
             player.addPoint()
+
+
+
 
     targetPipe = next((pipe for pipe in pipes if pipe.x + pipe.width > player.x), None)
 
 
 
-    if player.hit(targetPipe, displayHeight):
+
+
+    if player.hit(targetPipe):
         run = False
 
     if len(pipes) > 0 and pipes[0].outOfFrame():
         pipes.pop(0)
 
 
-    redrawDisplay()
+    redrawDisplay(player, pipes, font)
 
 
-deathScreen()
+deathScreen(player, pipes, font)
 pygame.quit()
